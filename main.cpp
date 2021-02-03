@@ -59,6 +59,45 @@ int main()
 	cout << "\n" << endl;
 
 	//////////////////////////////
+	/// VECTORS
+	//////////////////////////////
+
+	// constructing vector of a size 3
+	vec k(3), l(3), m(3), p(3);
+
+	// initializing vectors
+	k(0) = 3.2; k(1) = 6.3; k(2) = 8.1;
+	l(0) = 9.3; l(1) = 6.9; l(2) = 3.6;
+	m(0) = 3.1; m(1) = 2.3; m(2) = 1.2;
+	p = l + m;
+
+	// functions
+	cout << "Are l and p collinear? Answer = " << areCollinear(l, p) << endl;
+	cout << "Are k, l and m coplanar? Answer =  " << areCoplanar(k, l, m) << endl;
+	cout << "length(k) = " << length(k) << endl;
+	cout << "cos between k and l = " << cosBetween(k, l) << endl;
+	cout << "dot product of k and l = " << dotProd(k, l) << endl;
+	cout << "cross product of k and l = " << crossProd(k, l) << endl;
+	cout << endl;
+
+	// turning vectors to matrices
+	vec t(4);
+	mat Q(1, 4);
+	mat R(4, 1);
+	Q = asRow(t);
+	R = asCol(t);
+
+	// converting matrices (of proper size) to vectors
+	t = asVec(Q);
+	t = asVec(R);
+
+	//////////////////////////////
+
+	for (int i = 0; i < 40; ++i)
+		cout << "=";
+	cout << "\n" << endl;
+
+	//////////////////////////////
 	/// COMPLEX NUMBERS
 	//////////////////////////////
 

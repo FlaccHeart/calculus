@@ -2,15 +2,23 @@
 #define eps 1e-15
 
 // double comparison
-bool comp_d(const double f, const double s)
+bool isEqual(const double f, const double s)
 {
-	double small = 1e-7;
-	if (fabs(f) < small && fabs(s) < small)
-		return fabs(f - s) < small;
+	double small = 1e-8;
+	if (abs(f) < small && abs(s) < small)
+		return abs(f - s) < small;
 
-	if (fabs(f - s) <= eps * fmax(fabs(f), fabs(s)))
+	if (abs(f - s) <= eps * fmax(abs(f), abs(s)))
 		return true;
 	return false;
+}
+
+void roundByEps(double& n)
+{
+	if (isEqual(n, round(n)))
+		n = round(n);
+	if (n == -0)
+		n = 0;
 }
 
 ////////////////////////////////////////////////////
@@ -77,7 +85,7 @@ mat mat::operator+(const mat& m) const
 {
 	if (rows != m.rows || cols != m.cols)
 	{
-		std::cout << "Matrices cannot be added" << std::endl;
+		std::cout << "Matrices can not be added" << std::endl;
 		exit(1);
 	}
 
@@ -94,7 +102,7 @@ mat mat::operator-(const mat& m) const
 {
 	if (rows != m.rows || cols != m.cols)
 	{
-		std::cout << "Matrices cannot be added" << std::endl;
+		std::cout << "Matrices can not be subtracted" << std::endl;
 		exit(1);
 	}
 
@@ -111,7 +119,7 @@ mat mat::operator*(const mat& m) const
 {
 	if (cols != m.rows)
 	{
-		std::cout << "Matrices cannot be multiplied" << std::endl;
+		std::cout << "Matrices can not be multiplied" << std::endl;
 		exit(1);
 	}
 
@@ -122,7 +130,11 @@ mat mat::operator*(const mat& m) const
 			for (unsigned k = 0; k < cols; ++k)
 				prod.el[i][j] += el[i][k] * m.el[k][j];
 
-	return roundByEps(prod);
+	for (unsigned i = 0; i < prod.rows; ++i)
+		for (unsigned j = 0; j < prod.cols; ++j)
+			roundByEps(prod.el[i][j]);
+
+	return prod;
 }
 
 mat operator*(const double lambda, const mat& m)
@@ -133,7 +145,11 @@ mat operator*(const double lambda, const mat& m)
 		for (unsigned j = 0; j < m.cols; ++j)
 			res.el[i][j] = lambda * m.el[i][j];
 
-	return roundByEps(res);
+	for (unsigned i = 0; i < res.rows; ++i)
+		for (unsigned j = 0; j < res.cols; ++j)
+			roundByEps(res.el[i][j]);
+
+	return res;
 }
 
 mat operator*(const mat& m, const double lambda)
@@ -145,7 +161,7 @@ mat mat::operator^(const int pow) const
 {
 	if (rows != cols)
 	{
-		std::cout << "Matrix cannot be exponentiated" << std::endl;
+		std::cout << "Matrix can not be exponentiated" << std::endl;
 		exit(1);
 	}
 
@@ -187,14 +203,19 @@ mat mat::operator^(const int pow) const
 			for (unsigned j = 0; j < cols; ++j)
 				res(i, j) = attr2(i, j + cols);
 	}
-	return roundByEps(res);
+
+	for (unsigned i = 0; i < res.rows; ++i)
+		for (unsigned j = 0; j < res.cols; ++j)
+			roundByEps(res.el[i][j]);
+
+	return res;
 }
 
 void mat::operator=(const mat& m)
 {
 	if (rows != m.rows || cols != m.cols)
 	{
-		std::cout << "Matrices cannot be equated" << std::endl;
+		std::cout << "Matrices can not be equated" << std::endl;
 		exit(1);
 	}
 
@@ -204,6 +225,29 @@ void mat::operator=(const mat& m)
 }
 
 // friends
+
+vec asVec(const mat& m)
+{
+	if (m.rows == 1)
+	{
+		vec res(m.cols);
+		for (unsigned i = 0; i < m.cols; ++i)
+			res(i) = m.el[0][i];
+		return res;
+	}
+	else if (m.cols == 1)
+	{
+		vec res(m.rows);
+		for (unsigned i = 0; i < m.rows; ++i)
+			res(i) = m.el[i][0];
+		return res;
+	}
+	else
+	{
+		std::cout << "This matrix can not be converted to vector" << std::endl;
+		exit(1);
+	}
+}
 
 unsigned factorial(const unsigned n)
 {
@@ -226,7 +270,7 @@ mat steppedView(mat m)
 		for (unsigned j = 0; j < m.cols; ++j)
 		{
 			for (unsigned i = k; i < m.rows; ++i)
-				if (!comp_d(m.el[i][j], 0.0))
+				if (!isEqual(m.el[i][j], 0.0))
 				{
 					x = i; y = j;
 					break;
@@ -246,7 +290,12 @@ mat steppedView(mat m)
 			m.el[i][y] -= m.el[i][y] / m.el[k][y] * m.el[k][y];
 		}
 	}
-	return roundByEps(m);
+
+	for (unsigned i = 0; i < m.rows; ++i)
+		for (unsigned j = 0; j < m.cols; ++j)
+			roundByEps(m.el[i][j]);
+
+	return m;
 }
 
 mat betterSteppedView(const mat& m)
@@ -260,7 +309,7 @@ mat betterSteppedView(const mat& m)
 		double lambda = 0.0;
 		for (unsigned j = 0; j < stepped.cols; ++j)
 		{
-			if (!comp_d(stepped(i, j), 0.0) && comp_d(lambda, 0.0))
+			if (!isEqual(stepped(i, j), 0.0) && isEqual(lambda, 0.0))
 				lambda = stepped(i, j);
 			if (lambda != 0)
 				stepped(i, j) /= lambda;
@@ -271,7 +320,7 @@ mat betterSteppedView(const mat& m)
 	{
 		unsigned y = stepped.cols;
 		for (unsigned j = 0; j < stepped.cols; ++j)
-			if (!comp_d(stepped(i, j), 0.0))
+			if (!isEqual(stepped(i, j), 0.0))
 			{
 				y = j;
 				break;
@@ -284,20 +333,19 @@ mat betterSteppedView(const mat& m)
 		}
 	}
 
-	return roundByEps(stepped);
+	for (unsigned i = 0; i < stepped.rows; ++i)
+		for (unsigned j = 0; j < stepped.cols; ++j)
+			roundByEps(stepped.el[i][j]);
+
+	return stepped;
 }
 
 mat transpose(const mat& m)
 {
-	if (m.rows != m.cols)
-	{
-		std::cout << "You can only transpose square matrices" << std::endl;
-		exit(1);
-	}
-	mat res(m.rows, m.cols);
+	mat res(m.cols, m.rows);
 
-	for (unsigned i = 0; i < m.rows; ++i)
-		for (unsigned j = 0; j < m.cols; ++j)
+	for (unsigned i = 0; i < m.cols; ++i)
+		for (unsigned j = 0; j < m.rows; ++j)
 			res(i, j) = m.el[j][i];
 
 	return res;
@@ -350,32 +398,8 @@ double det(mat m)
 	delete[] p[0];
 	delete[] p;
 
+	roundByEps(determinant);
 	return determinant;
-}
-
-int mat::countNonZero(mat m)
-{
-	int q = 0;
-	for (unsigned i = 0; i < m.rows; ++i)
-	{
-		bool found = false;
-		for (unsigned j = 0; j < m.cols; ++j)
-			if (!comp_d(m(i, j), 0.0))
-			{
-				found = true;
-				break;
-			}
-		if (!found) return q;
-		++q;
-	}
-	return q;
-}
-
-void mat::swap(unsigned& f, unsigned& s)
-{
-	unsigned t = f;
-	f = s;
-	s = t;
 }
 
 unsigned** mat::transpositions()
@@ -472,17 +496,205 @@ unsigned** mat::transpositions()
 	return trsp;
 }
 
-mat roundByEps(const mat& m)
+int mat::countNonZero(mat m)
 {
+	int q = 0;
 	for (unsigned i = 0; i < m.rows; ++i)
+	{
+		bool found = false;
 		for (unsigned j = 0; j < m.cols; ++j)
+			if (!isEqual(m(i, j), 0.0))
+			{
+				found = true;
+				break;
+			}
+		if (!found) return q;
+		++q;
+	}
+	return q;
+}
+
+void mat::swap(unsigned& f, unsigned& s)
+{
+	unsigned t = f;
+	f = s;
+	s = t;
+}
+
+////////////////////////////////////////////////////
+/// VECTOR CLASS
+////////////////////////////////////////////////////
+
+vec::vec(unsigned n)
+{
+	m = new mat(1, n);
+}
+
+vec::vec(const vec& o)
+{
+	m = new mat(1, o.m->cols);
+	for (unsigned i = 0; i < o.m->cols; ++i)
+		m->el[0][i] = o.m->el[0][i];
+}
+
+vec::~vec()
+{
+	delete m;
+}
+
+double& vec::operator()(const unsigned k)
+{
+	return m->el[0][k];
+}
+
+vec vec::operator+(const vec& v) const
+{
+	vec sum(v.m->cols);
+	*(sum.m) = *this->m + *(v.m);
+	return sum;
+}
+
+vec vec::operator-(const vec& v) const
+{
+	vec dif(v.m->cols);
+	*(dif.m) = *this->m - *(v.m);
+	return dif;
+}
+
+vec operator*(const double lambda, const vec& v)
+{
+	vec res(v.m->cols);
+	*(res.m) = lambda * *(v.m);
+	return res;
+}
+
+vec operator*(const vec& v, const double lambda)
+{
+	return operator*(lambda, v);
+}
+
+void vec::operator=(const vec& v)
+{
+	*this->m = *(v.m);
+}
+
+std::ostream& operator<<(std::ostream& out, const vec& v)
+{
+	out << "{ " << v.m->el[0][0] << ", " << v.m->el[0][1] << ", " << v.m->el[0][2] << " }";
+	return out;
+}
+
+mat asRow(const vec& v)
+{
+	return *(v.m);
+}
+
+mat asCol(const vec& v)
+{
+	return transpose(*(v.m));
+}
+
+bool areCollinear(const vec& a, const vec& b)
+{
+	if (a.m->cols != b.m->cols)
+	{
+		std::cout << "Ñollinearity is not defined for vectors of different dimensions" << std::endl;
+		exit(1);
+	}
+
+	bool nonZeroA = false, nonZeroB = false;
+	for (unsigned i = 0; i < a.m->cols; ++i)
+	{
+		if (!isEqual(a.m->el[0][i], 0.0)) nonZeroA = true;
+		if (!isEqual(b.m->el[0][i], 0.0)) nonZeroB = true;
+	}
+	if (!nonZeroA || !nonZeroB)
+		return true; // both are null vectors
+
+	double k = 0.0;
+	for (unsigned i = 0; i < a.m->cols; ++i)
+	{
+		if (!isEqual(b.m->el[0][i], 0.0))
 		{
-			if (comp_d(m.el[i][j], round(m.el[i][j])))
-				m.el[i][j] = round(m.el[i][j]);
-			if (m.el[i][j] == -0)
-				m.el[i][j] = 0;
+			if (isEqual(a.m->el[0][i], 0.0)) return false;
+			else
+			{
+				if (!isEqual(k, 0.0))
+				{
+					if (!isEqual(a.m->el[0][i] / b.m->el[0][i], k))
+						return false;
+				}
+				else
+					k = a.m->el[0][i] / b.m->el[0][i];
+			}
 		}
-	return m;
+		else if (!isEqual(a.m->el[0][i], 0.0)) return false;
+	}
+	return true;
+}
+
+bool areCoplanar(const vec& a, const vec& b, const vec& c)
+{
+	if (a.m->cols != b.m->cols || a.m->cols != c.m->cols || a.m->cols != 3)
+	{
+		std::cout << "Ñoplanarity is only defined for 3 dimensional vectors" << std::endl;
+		exit(1);
+	}
+
+	mat D(3, 3);
+
+	D(0, 0) = a.m->el[0][0]; D(0, 1) = a.m->el[0][1]; D(0, 2) = a.m->el[0][2];
+	D(1, 0) = b.m->el[0][0]; D(1, 1) = b.m->el[0][1]; D(1, 2) = b.m->el[0][2];
+	D(2, 0) = c.m->el[0][0]; D(2, 1) = c.m->el[0][1]; D(2, 2) = c.m->el[0][2];
+
+	return !det(D);
+}
+
+double length(const vec& v)
+{
+	double m = 0.0;
+	for (unsigned i = 0; i < v.m->cols; ++i)
+		m += pow(v.m->el[0][i], 2);
+	return pow(m, 0.5);
+}
+
+double cosBetween(const vec& a, const vec& b)
+{
+	return dotProd(a, b) / length(a) / length(b);
+}
+
+double dotProd(const vec& a, const vec& b)
+{
+	return (*(a.m) * transpose(*(b.m))).el[0][0];
+}
+
+vec crossProd(const vec& a, const vec& b)
+{
+	if (a.m->cols != 3)
+	{
+		std::cout << "Cross product can only be calculated for 3 dimensional vectors" << std::endl;
+		exit(1);
+	}
+
+	if (areCollinear(a, b))
+		return vec(3); // null vector
+
+	vec res(3);
+
+	mat x(2, 2), y(2, 2), z(2, 2);
+
+	x(0, 0) = a.m->el[0][1]; x(0, 1) = a.m->el[0][2];
+	x(1, 0) = b.m->el[0][1]; x(1, 1) = b.m->el[0][2];
+
+	y(0, 0) = a.m->el[0][2]; y(0, 1) = a.m->el[0][0];
+	y(1, 0) = b.m->el[0][2]; y(1, 1) = b.m->el[0][0];
+
+	z(0, 0) = a.m->el[0][0]; z(0, 1) = a.m->el[0][1];
+	z(1, 0) = b.m->el[0][0]; z(1, 1) = b.m->el[0][1];
+
+	res(0) = det(x); res(1) = det(y); res(2) = det(z);
+
+	return res;
 }
 
 ////////////////////////////////////////////////////
@@ -611,7 +823,10 @@ complex* complRoots(const complex& c, const int p)
 		roots[i].m->operator()(0, 1) = newMod * sin(newArg);
 		roots[i].m->operator()(1, 0) = -newMod * sin(newArg);
 		roots[i].m->operator()(1, 1) = newMod * cos(newArg);
-		*(roots[i].m) = roundByEps(*(roots[i].m));
+
+		for (unsigned i = 0; i < roots[i].m->rows; ++i)
+			for (unsigned j = 0; j < roots[i].m->cols; ++j)
+				roundByEps(roots[i].m->el[i][j]);
 	}
 	return roots;
 }
