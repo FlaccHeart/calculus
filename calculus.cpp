@@ -17,7 +17,7 @@ bool comp_d(const double f, const double s)
 /// MATRIX CLASS
 ////////////////////////////////////////////////////
 
-// basic constructor
+// default constructor
 
 mat::mat(const unsigned _rows, const unsigned _cols)
 {
@@ -614,4 +614,29 @@ complex* complRoots(const complex& c, const int p)
 		*(roots[i].m) = roundByEps(*(roots[i].m));
 	}
 	return roots;
+}
+
+double getInterpolatedValue(double* x, double* y, unsigned n, double in)
+{
+	double* u = new double[n];
+	u[0] = y[0];
+	double fx = u[0], p = in - x[0];
+	for (unsigned i = 1; i < n; ++i)
+	{
+		double fn = 0.0;
+		double d = 1.0;
+		for (unsigned j = 0; j < i; ++j)
+		{
+			double c = 1.0;
+			for (unsigned k = 0; k < j; ++k)
+				c *= x[i] - x[k];
+
+			fn += u[j] * c;
+			d *= x[i] - x[j];
+		}
+		u[i] = (y[i] - fn) / d;
+		fx += u[i] * p;
+		p *= in - x[i];
+	}
+	return fx;
 }

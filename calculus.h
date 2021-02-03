@@ -72,3 +72,5 @@ private:
 
 	mat* m;
 };
+
+double getInterpolatedValue(double*, double*, unsigned, double);
