@@ -110,12 +110,17 @@ int main()
 	//////////////////////////////
 
 	// interpolation using Newton's formula
-	double x[6], y[6];
-	x[0] = 4.0; x[1] = 5.0; x[2] = 6.0; x[3] = 8.0; x[4] = 9.0; x[5] = 10.0;
-	y[0] = 12.0; y[1] = 9.0; y[2] = 8.0; y[3] = 12.0; y[4] = 17.0; y[5] = 24.0;
+	double x[5], y[5];
+	x[0] = 4.0; y[0] = 12.0;
+	x[1] = 5.0; y[1] = 9.0;
+	x[2] = 6.0; y[2] = 8.0;
+	////// 7.0 missing 9.0
+	x[3] = 8.0; y[3] = 12.0;
+	x[4] = 9.0; y[4] = 17.0;
 	double s = 7.0;
 
-	cout << "Interpolated value = " << getInterpolatedValue(x, y, 6, s) << endl;
+	// inputs, outputs, inputs-outputs array size, point to calculate the value at
+	cout << "Interpolated value = " << getInterpolatedValue(x, y, 5, s) << endl;
 
 	return 0;
 }
