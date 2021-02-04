@@ -575,7 +575,6 @@ void mat::swap(unsigned& f, unsigned& s)
 
 vec::vec()
 {
-	std::cout << "\n\n\n";
 }
 
 vec::vec(unsigned n)
@@ -654,7 +653,7 @@ bool areCollinear(const vec& a, const vec& b)
 {
 	if (a.m.cols != b.m.cols)
 	{
-		std::cout << "Ñollinearity is not defined for vectors of different dimensions" << std::endl;
+		std::cout << "Ã‘ollinearity is not defined for vectors of different dimensions" << std::endl;
 		exit(1);
 	}
 
@@ -693,7 +692,7 @@ bool areCoplanar(const vec& a, const vec& b, const vec& c)
 {
 	if (a.m.cols != b.m.cols || a.m.cols != c.m.cols || a.m.cols != 3)
 	{
-		std::cout << "Ñoplanarity is only defined for 3 dimensional vectors" << std::endl;
+		std::cout << "Ã‘oplanarity is only defined for 3 dimensional vectors" << std::endl;
 		exit(1);
 	}
 
