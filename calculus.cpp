@@ -25,10 +25,24 @@ void roundByEps(double& n)
 /// MATRIX CLASS
 ////////////////////////////////////////////////////
 
-// default constructor
+// default constructors
+
+mat::mat()
+{
+	rows = 1; cols = 1;
+	el = new double* [1];
+	el[0] = new double[1];
+	el[0][0] = 0.0;
+}
 
 mat::mat(const unsigned _rows, const unsigned _cols)
 {
+	if (_rows == 0 || _cols == 0)
+	{
+		std::cout << "Matrix can only have positive integers as numbers of rows and columns" << std::endl;
+		exit(1);
+	}
+
 	rows = _rows; cols = _cols;
 
 	el = new double* [rows];
@@ -50,6 +64,7 @@ mat::mat(const unsigned _rows, const unsigned _cols)
 
 mat::mat(const mat& o)
 {
+	//this->setSize(o.rows, o.cols);
 	rows = o.rows; cols = o.cols;
 	el = new double* [rows];
 	el[0] = new double[rows * cols];
@@ -72,6 +87,36 @@ mat::~mat()
 {
 	delete[] el[0];
 	delete[] el;
+}
+
+// setting size
+
+void mat::setSize(const unsigned n, const unsigned m)
+{
+	mat t(n, m);
+
+	for (unsigned i = 0; i < fmin(rows, n); ++i)
+		for (unsigned j = 0; j < fmin(cols, m); ++j)
+			t.el[i][j] = el[i][j];
+
+	delete[] el[0];
+	delete[] el;
+
+	rows = n; cols = m;
+
+	el = new double* [rows];
+	el[0] = new double[rows * cols];
+
+	for (unsigned j = 0; j < cols; ++j)
+		el[0][j] = t.el[0][j];
+
+	for (unsigned i = 1; i < rows; ++i)
+	{
+		el[i] = el[0] + i * cols;
+
+		for (unsigned j = 0; j < cols; ++j)
+			el[i][j] = t.el[i][j];
+	}
 }
 
 // operators overloading
@@ -232,14 +277,14 @@ vec asVec(const mat& m)
 	{
 		vec res(m.cols);
 		for (unsigned i = 0; i < m.cols; ++i)
-			res(i) = m.el[0][i];
+			res[i] = m.el[0][i];
 		return res;
 	}
 	else if (m.cols == 1)
 	{
 		vec res(m.rows);
 		for (unsigned i = 0; i < m.rows; ++i)
-			res(i) = m.el[i][0];
+			res[i] = m.el[i][0];
 		return res;
 	}
 	else
@@ -363,6 +408,9 @@ double det(mat m)
 		std::cout << "Determinant can only be calculated for square matrices" << std::endl;
 		exit(1);
 	}
+
+	if (m.rows == 1)
+		return m.el[0][0];
 
 	const unsigned n = m.rows;
 	double determinant = 0.0;
@@ -525,46 +573,54 @@ void mat::swap(unsigned& f, unsigned& s)
 /// VECTOR CLASS
 ////////////////////////////////////////////////////
 
+vec::vec()
+{
+	std::cout << "\n\n\n";
+}
+
 vec::vec(unsigned n)
 {
-	m = new mat(1, n);
+	m.setSize(1, n);
 }
 
 vec::vec(const vec& o)
 {
-	m = new mat(1, o.m->cols);
-	for (unsigned i = 0; i < o.m->cols; ++i)
-		m->el[0][i] = o.m->el[0][i];
+	m.setSize(1, o.m.cols);
+	m = o.m;
 }
 
 vec::~vec()
 {
-	delete m;
 }
 
-double& vec::operator()(const unsigned k)
+void vec::setSize(const unsigned n)
 {
-	return m->el[0][k];
+	m.setSize(1, n);
+}
+
+double& vec::operator[](const unsigned k)
+{
+	return m.el[0][k];
 }
 
 vec vec::operator+(const vec& v) const
 {
-	vec sum(v.m->cols);
-	*(sum.m) = *this->m + *(v.m);
+	vec sum(v.m.cols);
+	sum.m = this->m + v.m;
 	return sum;
 }
 
 vec vec::operator-(const vec& v) const
 {
-	vec dif(v.m->cols);
-	*(dif.m) = *this->m - *(v.m);
+	vec dif(v.m.cols);
+	dif.m = this->m - v.m;
 	return dif;
 }
 
 vec operator*(const double lambda, const vec& v)
 {
-	vec res(v.m->cols);
-	*(res.m) = lambda * *(v.m);
+	vec res(v.m.cols);
+	res.m = lambda * v.m;
 	return res;
 }
 
@@ -575,67 +631,67 @@ vec operator*(const vec& v, const double lambda)
 
 void vec::operator=(const vec& v)
 {
-	*this->m = *(v.m);
+	m = v.m;
 }
 
 std::ostream& operator<<(std::ostream& out, const vec& v)
 {
-	out << "{ " << v.m->el[0][0] << ", " << v.m->el[0][1] << ", " << v.m->el[0][2] << " }";
+	out << "{ " << v.m.el[0][0] << ", " << v.m.el[0][1] << ", " << v.m.el[0][2] << " }";
 	return out;
 }
 
 mat asRow(const vec& v)
 {
-	return *(v.m);
+	return v.m;
 }
 
 mat asCol(const vec& v)
 {
-	return transpose(*(v.m));
+	return transpose(v.m);
 }
 
 bool areCollinear(const vec& a, const vec& b)
 {
-	if (a.m->cols != b.m->cols)
+	if (a.m.cols != b.m.cols)
 	{
 		std::cout << "Ñollinearity is not defined for vectors of different dimensions" << std::endl;
 		exit(1);
 	}
 
 	bool nonZeroA = false, nonZeroB = false;
-	for (unsigned i = 0; i < a.m->cols; ++i)
+	for (unsigned i = 0; i < a.m.cols; ++i)
 	{
-		if (!isEqual(a.m->el[0][i], 0.0)) nonZeroA = true;
-		if (!isEqual(b.m->el[0][i], 0.0)) nonZeroB = true;
+		if (!isEqual(a.m.el[0][i], 0.0)) nonZeroA = true;
+		if (!isEqual(b.m.el[0][i], 0.0)) nonZeroB = true;
 	}
 	if (!nonZeroA || !nonZeroB)
 		return true; // both are null vectors
 
 	double k = 0.0;
-	for (unsigned i = 0; i < a.m->cols; ++i)
+	for (unsigned i = 0; i < a.m.cols; ++i)
 	{
-		if (!isEqual(b.m->el[0][i], 0.0))
+		if (!isEqual(b.m.el[0][i], 0.0))
 		{
-			if (isEqual(a.m->el[0][i], 0.0)) return false;
+			if (isEqual(a.m.el[0][i], 0.0)) return false;
 			else
 			{
 				if (!isEqual(k, 0.0))
 				{
-					if (!isEqual(a.m->el[0][i] / b.m->el[0][i], k))
+					if (!isEqual(a.m.el[0][i] / b.m.el[0][i], k))
 						return false;
 				}
 				else
-					k = a.m->el[0][i] / b.m->el[0][i];
+					k = a.m.el[0][i] / b.m.el[0][i];
 			}
 		}
-		else if (!isEqual(a.m->el[0][i], 0.0)) return false;
+		else if (!isEqual(a.m.el[0][i], 0.0)) return false;
 	}
 	return true;
 }
 
 bool areCoplanar(const vec& a, const vec& b, const vec& c)
 {
-	if (a.m->cols != b.m->cols || a.m->cols != c.m->cols || a.m->cols != 3)
+	if (a.m.cols != b.m.cols || a.m.cols != c.m.cols || a.m.cols != 3)
 	{
 		std::cout << "Ñoplanarity is only defined for 3 dimensional vectors" << std::endl;
 		exit(1);
@@ -643,9 +699,9 @@ bool areCoplanar(const vec& a, const vec& b, const vec& c)
 
 	mat D(3, 3);
 
-	D(0, 0) = a.m->el[0][0]; D(0, 1) = a.m->el[0][1]; D(0, 2) = a.m->el[0][2];
-	D(1, 0) = b.m->el[0][0]; D(1, 1) = b.m->el[0][1]; D(1, 2) = b.m->el[0][2];
-	D(2, 0) = c.m->el[0][0]; D(2, 1) = c.m->el[0][1]; D(2, 2) = c.m->el[0][2];
+	D(0, 0) = a.m.el[0][0]; D(0, 1) = a.m.el[0][1]; D(0, 2) = a.m.el[0][2];
+	D(1, 0) = b.m.el[0][0]; D(1, 1) = b.m.el[0][1]; D(1, 2) = b.m.el[0][2];
+	D(2, 0) = c.m.el[0][0]; D(2, 1) = c.m.el[0][1]; D(2, 2) = c.m.el[0][2];
 
 	return !det(D);
 }
@@ -653,8 +709,8 @@ bool areCoplanar(const vec& a, const vec& b, const vec& c)
 double length(const vec& v)
 {
 	double m = 0.0;
-	for (unsigned i = 0; i < v.m->cols; ++i)
-		m += pow(v.m->el[0][i], 2);
+	for (unsigned i = 0; i < v.m.cols; ++i)
+		m += pow(v.m.el[0][i], 2);
 	return pow(m, 0.5);
 }
 
@@ -665,12 +721,12 @@ double cosBetween(const vec& a, const vec& b)
 
 double dotProd(const vec& a, const vec& b)
 {
-	return (*(a.m) * transpose(*(b.m))).el[0][0];
+	return (a.m * transpose(b.m)).el[0][0];
 }
 
 vec crossProd(const vec& a, const vec& b)
 {
-	if (a.m->cols != 3)
+	if (a.m.cols != 3)
 	{
 		std::cout << "Cross product can only be calculated for 3 dimensional vectors" << std::endl;
 		exit(1);
@@ -683,16 +739,16 @@ vec crossProd(const vec& a, const vec& b)
 
 	mat x(2, 2), y(2, 2), z(2, 2);
 
-	x(0, 0) = a.m->el[0][1]; x(0, 1) = a.m->el[0][2];
-	x(1, 0) = b.m->el[0][1]; x(1, 1) = b.m->el[0][2];
+	x(0, 0) = a.m.el[0][1]; x(0, 1) = a.m.el[0][2];
+	x(1, 0) = b.m.el[0][1]; x(1, 1) = b.m.el[0][2];
 
-	y(0, 0) = a.m->el[0][2]; y(0, 1) = a.m->el[0][0];
-	y(1, 0) = b.m->el[0][2]; y(1, 1) = b.m->el[0][0];
+	y(0, 0) = a.m.el[0][2]; y(0, 1) = a.m.el[0][0];
+	y(1, 0) = b.m.el[0][2]; y(1, 1) = b.m.el[0][0];
 
-	z(0, 0) = a.m->el[0][0]; z(0, 1) = a.m->el[0][1];
-	z(1, 0) = b.m->el[0][0]; z(1, 1) = b.m->el[0][1];
+	z(0, 0) = a.m.el[0][0]; z(0, 1) = a.m.el[0][1];
+	z(1, 0) = b.m.el[0][0]; z(1, 1) = b.m.el[0][1];
 
-	res(0) = det(x); res(1) = det(y); res(2) = det(z);
+	res[0] = det(x); res[1] = det(y); res[2] = det(z);
 
 	return res;
 }
@@ -703,88 +759,87 @@ vec crossProd(const vec& a, const vec& b)
 
 complex::complex()
 {
-	m = new mat(2, 2);
-	(*m)(0, 0) = 0.0; (*m)(0, 1) = 0.0;
-	(*m)(1, 0) = 0.0; (*m)(1, 1) = 0.0;
+	m.setSize(2, 2);
+	m(0, 0) = 0.0; m(0, 1) = 0.0;
+	m(1, 0) = 0.0; m(1, 1) = 0.0;
 }
 
 complex::complex(const double re, const double im)
 {
-	m = new mat(2, 2);
-	(*m)(0, 0) = re; (*m)(0, 1) = im;
-	(*m)(1, 0) = -im; (*m)(1, 1) = re;
+	m.setSize(2, 2);
+	m(0, 0) = re; m(0, 1) = im;
+	m(1, 0) = -im; m(1, 1) = re;
 }
 
 complex::complex(const complex& o)
 {
-	m = new mat(2, 2);
-	*m = *(o.m);
+	m.setSize(o.m.rows, o.m.rows);
+	m = o.m;
 }
 
 complex::~complex()
 {
-	delete m;
 }
 
 void complex::operator()(const double re, const double im)
 {
-	(*m)(0, 0) = re; (*m)(0, 1) = im;
-	(*m)(1, 0) = -im; (*m)(1, 1) = re;
+	m(0, 0) = re; m(0, 1) = im;
+	m(1, 0) = -im; m(1, 1) = re;
 }
 
 complex complex::operator+(const complex& c) const
 {
 	complex sum;
-	*(sum.m) = *m + *(c.m);
+	sum.m = m + c.m;
 	return sum;
 }
 
 complex complex::operator-(const complex& c) const
 {
 	complex dif;
-	*(dif.m) = *m - *(c.m);
+	dif.m = m - c.m;
 	return dif;
 }
 
 complex complex::operator*(const complex& c) const
 {
 	complex prod;
-	*(prod.m) = *m * *(c.m);
+	prod.m = m * c.m;
 	return prod;
 }
 
 complex complex::operator^(const int pow) const
 {
 	complex res;
-	*(res.m) = *m ^ pow;
+	res.m = m ^ pow;
 	return res;
 }
 
 void complex::operator=(const complex& c)
 {
-	*m = *(c.m);
+	m = c.m;
 }
 
 void complex::operator=(const double re)
 {
-	(*m)(0, 0) = re; (*m)(0, 1) = 0.0;
-	(*m)(1, 0) = 0.0; (*m)(1, 1) = re;
+	m(0, 0) = re; m(0, 1) = 0.0;
+	m(1, 0) = 0.0; m(1, 1) = re;
 }
 
 std::ostream& operator<<(std::ostream& out, const complex& c)
 {
-	out << c.m->operator()(0, 0) << " + " << c.m->operator()(0, 1) << "i";
+	out << c.m.el[0][0] << " + " << c.m.el[0][1] << "i";
 	return out;
 }
 
 double& Re(const complex& c)
 {
-	return c.m->operator()(0, 0);
+	return c.m.el[0][0];
 }
 
 double& Im(const complex& c)
 {
-	return c.m->operator()(0, 1);
+	return c.m.el[0][1];
 }
 
 double mod(const complex& c)
@@ -800,7 +855,7 @@ double arg(const complex& c)
 complex conj(const complex& c)
 {
 	complex conjugated;
-	*(conjugated.m) = transpose(*(c.m));
+	conjugated.m = transpose(c.m);
 	return conjugated;
 }
 
@@ -819,14 +874,14 @@ complex* complRoots(const complex& c, const int p)
 	for (int i = 0; i < p; ++i)
 	{
 		newArg = (arg(c) + PI * i) / (double)p;
-		roots[i].m->operator()(0, 0) = newMod * cos(newArg);
-		roots[i].m->operator()(0, 1) = newMod * sin(newArg);
-		roots[i].m->operator()(1, 0) = -newMod * sin(newArg);
-		roots[i].m->operator()(1, 1) = newMod * cos(newArg);
+		roots[i].m.el[0][0] = newMod * cos(newArg);
+		roots[i].m.el[0][1] = newMod * sin(newArg);
+		roots[i].m.el[1][0] = -newMod * sin(newArg);
+		roots[i].m.el[1][1] = newMod * cos(newArg);
 
-		for (unsigned i = 0; i < roots[i].m->rows; ++i)
-			for (unsigned j = 0; j < roots[i].m->cols; ++j)
-				roundByEps(roots[i].m->el[i][j]);
+		for (unsigned j = 0; j < roots[i].m.rows; ++j)
+			for (unsigned k = 0; k < roots[i].m.cols; ++k)
+				roundByEps(roots[j].m.el[j][k]);
 	}
 	return roots;
 }

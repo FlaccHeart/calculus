@@ -14,11 +14,15 @@ class mat
 {
 public:
 
+	mat();
 	mat(const unsigned, const unsigned);
 	mat(const mat&);
 	~mat();
 
 	unsigned rows, cols;
+
+	// setting size
+	void setSize(const unsigned, const unsigned);
 
 	// operators overloading
 	double& operator()(const unsigned, const unsigned);
@@ -53,12 +57,16 @@ class vec
 {
 public:
 
-	vec(unsigned);
+	vec();
+	vec(const unsigned);
 	vec(const vec&);
 	~vec();
 
+	// setting size
+	void setSize(const unsigned);
+
 	// operators overloading
-	double& operator()(const unsigned);
+	double& operator[](const unsigned);
 	vec operator+(const vec&) const;
 	vec operator-(const vec&) const;
 	friend vec operator*(const double, const vec&);
@@ -80,7 +88,7 @@ public:
 
 private:
 
-	mat* m;
+	mat m;
 };
 
 class complex
@@ -111,7 +119,7 @@ public:
 
 private:
 
-	mat* m;
+	mat m;
 };
 
 double getInterpolatedValue(double*, double*, unsigned, double);
