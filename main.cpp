@@ -32,6 +32,7 @@ int main()
 	// operations
 	C = A * B;
 	C = 5 * C;
+	C = -B;
 	C += B;
 	D = A ^ -1; // inverse matrix
 

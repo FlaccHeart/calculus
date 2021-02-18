@@ -89,7 +89,7 @@ namespace vm
 		// arithmetic
 		vec operator+(const vec&) const;
 		vec operator-(const vec&) const;
-		vec operator-();
+		vec operator-() const;
 
 		// with constants
 		friend vec operator*(const double, const vec&);
