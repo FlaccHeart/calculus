@@ -693,7 +693,7 @@ namespace vm
 		return dif;
 	}
 
-	vec vec::operator-()
+	vec vec::operator-() const
 	{
 		vec res(m.cols);
 		res = -1 * m;
