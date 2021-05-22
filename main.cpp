@@ -1,5 +1,4 @@
-﻿#include <iostream>
-#include "vmath.h"
+﻿#include "vmath.h"
 
 using namespace std;
 
@@ -13,14 +12,14 @@ int main()
 	vm::mat A(3, 3), B(3, 2), C(3, 2), D(3, 3), E(3, 3), F(3, 3), G(3, 3);
 
 	// random matrix
-	A(0, 0) = 1.63; A(0, 1) = 5.73; A(0, 2) = 2.26; 
+	A(0, 0) = 1.63; A(0, 1) = 5.73; A(0, 2) = 2.26;
 	A(1, 0) = 2.61; A(1, 1) = 3.86; A(1, 2) = 1.57;
 	A(2, 0) = 4.19; A(2, 1) = 6.38; A(2, 2) = 7.28;
 
 	// singular matrix
-	B(0, 0) = 12.3; B(0, 1) = 24.3;
-	B(1, 0) = 32.1; B(1, 1) = 32.1;
-	B(2, 0) = 42.6; B(2, 1) = 15.7;
+	B(0, 0) = 12.3; B(0, 1) = 24.6;
+	B(1, 0) = 14.1; B(1, 1) = 28.2;
+	B(2, 0) = 15.7; B(2, 1) = 31.4;
 
 	// ranks and determinants
 	cout << "Ranks and determinants:\n" << endl;
@@ -35,13 +34,13 @@ int main()
 	C = -B;
 	C += B;
 	D = A ^ -1; // inverse matrix
-
+	
 	// other functions
 	E = steppedView(D);
 	F = betterSteppedView(D);
 	G = transpose(D);
 	D.setSize(3, 4); // fills new column with zeroes
-
+	
 	//////////////////////////////
 
 	// printing matrix E
@@ -59,7 +58,7 @@ int main()
 	for (int i = 0; i < 40; ++i)
 		cout << "=";
 	cout << "\n" << endl;
-
+	
 	//////////////////////////////
 	/// VECTORS
 	//////////////////////////////
@@ -159,7 +158,7 @@ int main()
 	for (int i = 0; i < 40; ++i)
 		cout << "=";
 	cout << "\n" << endl;
-	
+
 	//////////////////////////////
 	/// INTERPOLATION
 	//////////////////////////////
@@ -175,7 +174,7 @@ int main()
 	double s = 7.0;
 
 	// inputs, outputs, in-out array size, point to calculate the value at
-	cout << "Interpolated value = " << vm::getInterpolatedValue(x, y, 5, s) << endl;
-
+	cout << "Interpolated value = " << vm::interpolate(x, y, 5, s) << endl;
+	
 	return 0;
 }

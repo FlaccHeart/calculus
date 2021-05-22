@@ -1,38 +1,33 @@
 #include "vmath.h"
-#define eps 1e-15
 
 namespace vm
 {
-	////////////////////////////////////////////////////
-	/// FUNCTIONS
-	////////////////////////////////////////////////////
-
 	bool areEqual(const double f, const double s)
 	{
-		double small = 1e-8;
+		const double small = 1e-7;
+
 		if (abs(f) < small && abs(s) < small)
 			return abs(f - s) < small;
 
 		if (abs(f - s) <= eps * fmax(abs(f), abs(s)))
 			return true;
+
 		return false;
 	}
 
-	void roundByEps(double& n)
+	void restoreInt(double& n)
 	{
 		if (areEqual(n, round(n)))
 			n = round(n);
-		if (n == -0)
-			n = 0;
+
+		if (n == -0) n = 0;
 	}
 
-	int sgn(double n)
+	int sgn(const double x)
 	{
-		if (n > 0)
-			return 1;
-		if (n < 0)
-			return -1;
-		return 0;
+		if (areEqual(x, 0.0)) return 0;
+		if (x > 0) return 1;
+		return -1;
 	}
 
 	unsigned factorial(const unsigned n)
@@ -40,115 +35,223 @@ namespace vm
 		if (n == 0) return 1;
 
 		unsigned k = 2, r = 1;
+
 		while (k <= n)
 		{
 			r *= k;
 			++k;
 		}
+
 		return r;
 	}
 
-	double getInterpolatedValue(double* x, double* y, unsigned n, double in)
+	double interpolate(double* x, double* y, unsigned n, double in)
 	{
 		double* u = new double[n];
 		u[0] = y[0];
 		double fx = u[0], p = in - x[0];
+
 		for (unsigned i = 1; i < n; ++i)
 		{
 			double fn = 0.0;
 			double d = 1.0;
+
 			for (unsigned j = 0; j < i; ++j)
 			{
 				double c = 1.0;
+
 				for (unsigned k = 0; k < j; ++k)
 					c *= x[i] - x[k];
 
 				fn += u[j] * c;
 				d *= x[i] - x[j];
 			}
+
 			u[i] = (y[i] - fn) / d;
 			fx += u[i] * p;
 			p *= in - x[i];
 		}
+
+		delete[] u;
 		return fx;
 	}
 
+	void invSets(unsigned*** mem, const unsigned n)
+	{
+		if (n < 2) return;
 
+		invSets(mem, n - 1);
+
+		const unsigned f = factorial(n);
+		const unsigned p = factorial(n - 1);
+
+		for (unsigned i = 1; i < n; ++i) // clone S(n - 1) block n - 1 times
+		{
+			for (unsigned j = 0; j < p; ++j) // inside a block
+			{
+				unsigned u = 0;
+
+				while (mem[j][u][0] || mem[j][u][1])
+				{
+					mem[i * p + j][u][0] = mem[j][u][0];
+					mem[i * p + j][u][1] = mem[j][u][1];
+					++u;
+				}
+
+				for (unsigned k = u; k < u + i; ++k)
+				{
+					mem[i * p + j][k][0] = (n - 1) - i + k - u;
+					mem[i * p + j][k][1] = (n - 1);
+				}
+			}
+		}
+	}
+
+	void trspGroup(unsigned** group, const unsigned n)
+	{
+		// group itself must have a size [n!] * [n]
+
+		const unsigned f = factorial(n);
+		const unsigned s = n * (n - 1) / 2;
+
+		// creating a memory block of a size [n!] * [n * (n - 1) / 2] * [2]
+		unsigned*** trsp = new unsigned** [f];
+
+		for (unsigned i = 0; i < f; ++i)
+		{
+			trsp[i] = new unsigned* [s];
+
+			for (unsigned j = 0; j < s; ++j)
+			{
+				trsp[i][j] = new unsigned[2];
+				trsp[i][j][0] = trsp[i][j][1] = 0;
+			}
+		}
+
+		// getting inversions to build transpositions
+		invSets(trsp, n);
+
+		for (unsigned i = 0; i < f; ++i)
+		{
+			// initializing a group element with id transposition
+			for (unsigned j = 0; j < n; ++j)
+				group[i][j] = j;
+
+			// applying inversions
+			for (unsigned u = 0; u < s; ++u)
+			{
+				if (!trsp[i][u][0] && !trsp[i][u][1])
+					break;
+
+				const unsigned t = group[i][trsp[i][u][0]];
+				group[i][trsp[i][u][0]] = group[i][trsp[i][u][1]];
+				group[i][trsp[i][u][1]] = t;
+			}
+		}
+
+		for (unsigned i = 0; i < f; ++i)
+		{
+			for (unsigned j = 0; j < s; ++j)
+				delete[] trsp[i][j];
+			delete[] trsp[i];
+		}
+
+		delete[] trsp;
+	}
 
 	////////////////////////////////////////////////////
 	/// MATRIX CLASS
 	////////////////////////////////////////////////////
 
-	// constructors & destructor
+	// CONSTRUCTORS & DESTRUCTOR
 
 	mat::mat()
 	{
-		rows = 1; cols = 1;
-		el = new double* [1];
-		el[0] = new double[1];
-		el[0][0] = 0.0;
+		rows = cols = 0;
+		el = nullptr;
 	}
 
 	mat::mat(const unsigned _rows, const unsigned _cols)
 	{
 		if (_rows == 0 || _cols == 0)
 		{
-			std::cout << "Matrix can only have positive integers as numbers of rows and columns" << std::endl;
-			exit(1);
+			rows = cols = 0;
+			el = nullptr;
 		}
-
-		rows = _rows; cols = _cols;
-
-		el = new double* [rows];
-		el[0] = new double[rows * cols];
-
-		for (unsigned j = 0; j < cols; ++j)
-			el[0][j] = 0.0;
-
-		for (unsigned i = 1; i < rows; ++i)
+		else
 		{
-			el[i] = el[0] + i * cols;
+			rows = _rows; cols = _cols;
+
+			el = (double**)malloc(sizeof(double*) * rows + sizeof(double) * rows * cols);
+			el[0] = (double*)(el + rows);
 
 			for (unsigned j = 0; j < cols; ++j)
-				el[i][j] = 0.0;
+				el[0][j] = 0.0;
+
+			for (unsigned i = 1; i < rows; ++i)
+			{
+				el[i] = el[i - 1] + cols;
+
+				for (unsigned j = 0; j < cols; ++j)
+					el[i][j] = 0.0;
+			}
 		}
 	}
 
 	mat::mat(const mat& o)
 	{
-		//this->setSize(o.rows, o.cols);
 		rows = o.rows; cols = o.cols;
-		el = new double* [rows];
-		el[0] = new double[rows * cols];
 
-		for (unsigned j = 0; j < cols; ++j)
-			el[0][j] = o.el[0][j];
-
-		for (unsigned i = 1; i < rows; ++i)
+		if (o.el == nullptr)
+			el = nullptr;
+		else
 		{
-			el[i] = el[0] + i * cols;
+			el = (double**)malloc(sizeof(double*) * rows + sizeof(double) * rows * cols);
+			el[0] = (double*)(el + rows);
 
 			for (unsigned j = 0; j < cols; ++j)
-				el[i][j] = o.el[i][j];
+				el[0][j] = o.el[0][j];
+
+			for (unsigned i = 1; i < rows; ++i)
+			{
+				el[i] = el[i - 1] + cols;
+
+				for (unsigned j = 0; j < cols; ++j)
+					el[i][j] = o.el[i][j];
+			}
 		}
 	}
 
 	mat::~mat()
 	{
-		delete[] el[0];
-		delete[] el;
+		free(el);
 	}
-	
 
-	// operators overloading
+	// OPERATORS
 
-	double& mat::operator()(const unsigned i, const unsigned j)
+	// picking an element
+
+	double& mat::operator()(const unsigned i, const unsigned j) const
 	{
+		if (i >= rows || j >= cols)
+		{
+			std::cout << "Out of range" << std::endl;
+			exit(1);
+		}
+
 		return el[i][j];
 	}
 
+	// arithmetic
+
 	mat mat::operator+(const mat& m) const
 	{
+		if (el == nullptr || m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		if (rows != m.rows || cols != m.cols)
 		{
 			std::cout << "Objects can not be added" << std::endl;
@@ -166,6 +269,12 @@ namespace vm
 
 	mat mat::operator-(const mat& m) const
 	{
+		if (el == nullptr || m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		if (rows != m.rows || cols != m.cols)
 		{
 			std::cout << "Objects can not be subtracted" << std::endl;
@@ -188,6 +297,12 @@ namespace vm
 
 	mat mat::operator*(const mat& m) const
 	{
+		if (el == nullptr || m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		if (cols != m.rows)
 		{
 			std::cout << "Matrices can not be multiplied" << std::endl;
@@ -199,26 +314,32 @@ namespace vm
 		for (unsigned i = 0; i < rows; ++i)
 			for (unsigned j = 0; j < m.cols; ++j)
 				for (unsigned k = 0; k < cols; ++k)
+				{
 					prod.el[i][j] += el[i][k] * m.el[k][j];
-
-		for (unsigned i = 0; i < prod.rows; ++i)
-			for (unsigned j = 0; j < prod.cols; ++j)
-				roundByEps(prod.el[i][j]);
+					restoreInt(prod.el[i][j]);
+				}
 
 		return prod;
 	}
 
+	// operations with constants
+
 	mat operator*(const double lambda, const mat& m)
 	{
+		if (m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		mat res(m.rows, m.cols);
 
 		for (unsigned i = 0; i < m.rows; ++i)
 			for (unsigned j = 0; j < m.cols; ++j)
+			{
 				res.el[i][j] = lambda * m.el[i][j];
-
-		for (unsigned i = 0; i < res.rows; ++i)
-			for (unsigned j = 0; j < res.cols; ++j)
-				roundByEps(res.el[i][j]);
+				restoreInt(res.el[i][j]);
+			}
 
 		return res;
 	}
@@ -230,21 +351,32 @@ namespace vm
 
 	mat operator/(const mat& m, const double lambda)
 	{
+		if (m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		mat res(m.rows, m.cols);
 
 		for (unsigned i = 0; i < m.rows; ++i)
 			for (unsigned j = 0; j < m.cols; ++j)
+			{
 				res.el[i][j] = m.el[i][j] / lambda;
-
-		for (unsigned i = 0; i < res.rows; ++i)
-			for (unsigned j = 0; j < res.cols; ++j)
-				roundByEps(res.el[i][j]);
+				restoreInt(res.el[i][j]);
+			}
 
 		return res;
 	}
 
 	mat mat::operator^(const int pow) const
 	{
+		if (el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		if (rows != cols)
 		{
 			std::cout << "Matrix can not be exponentiated" << std::endl;
@@ -263,7 +395,7 @@ namespace vm
 		{
 			res = *this;
 			for (int i = 1; i < pow; ++i)
-				res = res * *this;
+				res *= *this;
 		}
 		else
 		{
@@ -279,30 +411,27 @@ namespace vm
 			{
 				for (unsigned j = 0; j < cols; ++j)
 					attr1.el[i][j] = el[i][j];
+
 				for (unsigned j = cols; j < 2 * cols; ++j)
-					if (i == j - cols)
+					if (i == (j - cols))
 						attr1.el[i][j] = 1.0;
 			}
+
 			attr2 = betterSteppedView(attr1);
 
 			for (unsigned i = 0; i < rows; ++i)
 				for (unsigned j = 0; j < cols; ++j)
 					res(i, j) = attr2(i, j + cols);
 		}
-
-		for (unsigned i = 0; i < res.rows; ++i)
-			for (unsigned j = 0; j < res.cols; ++j)
-				roundByEps(res.el[i][j]);
-
 		return res;
 	}
 
+	// equating
+
 	void mat::operator=(const mat& m)
 	{
-		if (rows == 1 && cols == 1)
-			setSize(m.rows, m.cols);
-
-		if (rows != m.rows || cols != m.cols)
+		if (el == nullptr) setSize(m.rows, m.cols);
+		else if (rows != m.rows || cols != m.cols)
 		{
 			std::cout << "Objects can not be equated" << std::endl;
 			exit(1);
@@ -323,6 +452,11 @@ namespace vm
 		*this = *this - m;
 	}
 
+	void mat::operator*=(const mat& m)
+	{
+		*this = *this * m;
+	}
+
 	void mat::operator*=(const double lambda)
 	{
 		*this = *this * lambda;
@@ -332,6 +466,8 @@ namespace vm
 	{
 		*this = *this / lambda;
 	}
+
+	// comparison
 
 	bool operator==(const mat& l, const mat& r)
 	{
@@ -351,46 +487,41 @@ namespace vm
 		return !operator==(l, r);
 	}
 
+	// METHODS
 
-	// methods
-
-	void mat::setSize(const unsigned n, const unsigned m)
+	void mat::setSize(const unsigned m, const unsigned n)
 	{
-		mat t(n, m);
+		mat t(m, n);
 
-		for (unsigned i = 0; i < fmin(rows, n); ++i)
-			for (unsigned j = 0; j < fmin(cols, m); ++j)
+		for (unsigned i = 0; i < std::min(rows, m); ++i)
+			for (unsigned j = 0; j < std::min(cols, n); ++j)
 				t.el[i][j] = el[i][j];
 
-		delete[] el[0];
-		delete[] el;
+		rows = m; cols = n;
 
-		rows = n; cols = m;
-
-		el = new double* [rows];
-		el[0] = new double[rows * cols];
+		el = (double**)realloc(el, sizeof(double*) * rows + sizeof(double) * rows * cols);
+		el[0] = (double*)(el + rows);
 
 		for (unsigned j = 0; j < cols; ++j)
 			el[0][j] = t.el[0][j];
 
 		for (unsigned i = 1; i < rows; ++i)
 		{
-			el[i] = el[0] + i * cols;
+			el[i] = el[i - 1] + cols;
 
 			for (unsigned j = 0; j < cols; ++j)
 				el[i][j] = t.el[i][j];
 		}
 	}
 
-	void mat::swap(unsigned& f, unsigned& s)
-	{
-		unsigned t = f;
-		f = s;
-		s = t;
-	}
-	
 	mat transpose(const mat& m)
 	{
+		if (m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		mat res(m.cols, m.rows);
 
 		for (unsigned i = 0; i < m.cols; ++i)
@@ -400,11 +531,20 @@ namespace vm
 		return res;
 	}
 
-	mat steppedView(mat m)
+	mat steppedView(const mat& m)
 	{
+		if (m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
+		mat stepped(m.rows, m.cols);
+
 		for (unsigned k = 0; k < m.rows - 1; ++k)
 		{
 			unsigned x = m.rows, y = m.cols;
+
 			for (unsigned j = 0; j < m.cols; ++j)
 			{
 				for (unsigned i = k; i < m.rows; ++i)
@@ -413,59 +553,67 @@ namespace vm
 						x = i; y = j;
 						break;
 					}
+
 				if (x != m.rows) break;
 			}
-			if (x == m.rows) return m; // all zeros
+
+			stepped = m;
+
+			if (x == m.rows) return stepped; // all zeros
 
 			if (x != k)
 				for (unsigned j = 0; j < m.cols; ++j)
-					m.el[k][j] += m.el[x][j];
+					stepped(k, j) += m.el[x][j];
 
 			for (unsigned i = k + 1; i < m.rows; ++i)
 			{
 				for (unsigned j = m.cols - 1; j > y; --j)
-					m.el[i][j] -= m.el[i][y] / m.el[k][y] * m.el[k][j];
-				m.el[i][y] -= m.el[i][y] / m.el[k][y] * m.el[k][y];
+					stepped(i, j) -= m.el[i][y] / m.el[k][y] * m.el[k][j];
+				stepped(i, y) -= m.el[i][y] / m.el[k][y] * m.el[k][y];
 			}
 		}
 
 		for (unsigned i = 0; i < m.rows; ++i)
 			for (unsigned j = 0; j < m.cols; ++j)
-				roundByEps(m.el[i][j]);
+				restoreInt(stepped(i, j));
 
-		return m;
+		return stepped;
 	}
 
 	mat betterSteppedView(const mat& m)
 	{
-		mat stepped(m.rows, m.cols);
-		stepped = steppedView(m);
-		int nonZeroQ = stepped.countNonZero(stepped);
+		mat stepped = steppedView(m);
+		unsigned rank = rk(stepped);
 
-		for (int i = 0; i < nonZeroQ; ++i)
+		for (unsigned i = 0; i < rank; ++i)
 		{
 			double lambda = 0.0;
+
 			for (unsigned j = 0; j < stepped.cols; ++j)
 			{
 				if (!areEqual(stepped(i, j), 0.0) && areEqual(lambda, 0.0))
 					lambda = stepped(i, j);
-				if (lambda != 0)
+
+				if (!areEqual(lambda, 0.0))
 					stepped(i, j) /= lambda;
 			}
 		}
 
-		for (int i = 0; i < nonZeroQ; ++i)
+		for (unsigned i = 0; i < rank; ++i)
 		{
 			unsigned y = stepped.cols;
+
 			for (unsigned j = 0; j < stepped.cols; ++j)
 				if (!areEqual(stepped(i, j), 0.0))
 				{
 					y = j;
 					break;
 				}
-			for (int p = 0; p < i; ++p)
+
+			for (unsigned p = 0; p < i; ++p)
 			{
 				double lambda = stepped(i, y) * stepped(p, y);
+
 				for (unsigned q = y; q < stepped.cols; ++q)
 					stepped(p, q) -= lambda * stepped(i, q);
 			}
@@ -473,184 +621,96 @@ namespace vm
 
 		for (unsigned i = 0; i < stepped.rows; ++i)
 			for (unsigned j = 0; j < stepped.cols; ++j)
-				roundByEps(stepped.el[i][j]);
+				restoreInt(stepped(i, j));
 
 		return stepped;
 	}
 
-	int rk(mat m)
+	unsigned rk(const mat& m)
 	{
-		return m.countNonZero(steppedView(m));
+		mat stepped = steppedView(m);
+		unsigned q = 0;
+
+		for (unsigned i = 0; i < stepped.rows; ++i)
+		{
+			bool found = false;
+
+			for (unsigned j = 0; j < stepped.cols; ++j)
+				if (!areEqual(stepped(i, j), 0.0))
+				{
+					found = true;
+					break;
+				}
+
+			if (!found) return q;
+			++q;
+		}
+
+		return q;
 	}
 
-	double det(mat m)
+	double det(const mat& m)
 	{
+		if (m.el == nullptr)
+		{
+			std::cout << "Object is not defined" << std::endl;
+			exit(1);
+		}
+
 		if (m.rows != m.cols)
 		{
 			std::cout << "Determinant can only be calculated for square matrices" << std::endl;
 			exit(1);
 		}
 
-		if (m.rows == 1)
-			return m.el[0][0];
-
 		const unsigned n = m.rows;
-		double determinant = 0.0;
-		unsigned f = factorial(n);
-		unsigned** p = m.transpositions();
+		const unsigned f = factorial(n);
+		unsigned** group = new unsigned* [f];
 
-		// calculating the determinant
+		for (unsigned i = 0; i < f; ++i)
+			group[i] = new unsigned[n];
+
+		trspGroup(group, n);
+
+		double determinant = 0.0;
+
 		for (unsigned i = 0; i < f; ++i)
 		{
 			int sign;
+
 			if (i % 2 == 0)
 			{
-				if (i % 4 == 0)
-					sign = 1;
-				else
-					sign = -1;
+				if (i % 4 == 0) sign = 1;
+				else sign = -1;
 			}
 			else
 			{
-				if ((i - 1) % 4 == 0)
-					sign = -1;
-				else
-					sign = 1;
+				if ((i - 1) % 4 == 0) sign = -1;
+				else sign = 1;
 			}
 
-			double term = 1;
+			double term = 1.0;
+
 			for (unsigned j = 0; j < n; ++j)
-				term *= m(j, p[i][j]);
+				term *= m.el[j][group[i][j]];
+
 			term *= sign;
 			determinant += term;
 		}
 
-		delete[] p[0];
-		delete[] p;
+		for (unsigned i = 0; i < f; ++i)
+			delete[] group[i];
+		delete[] group;
 
-		roundByEps(determinant);
+		restoreInt(determinant);
 		return determinant;
 	}
-
-	unsigned** mat::transpositions()
-	{
-		const unsigned n = rows;
-		unsigned f = factorial(n);
-
-		// inversions matrix (3rd dimension for transposition itself)
-		unsigned*** invSets = new unsigned** [f];
-		for (unsigned i = 0; i < f; ++i)
-		{
-			invSets[i] = new unsigned* [n * (n - 1) / 2];
-			for (unsigned j = 0; j < n * (n - 1) / 2; ++j)
-			{
-				invSets[i][j] = new unsigned[2];
-				invSets[i][j][0] = 0;
-				invSets[i][j][1] = 0;
-			}
-		}
-
-		// creating the sets of inversions
-
-		invSets[1][0][0] = n - 2;
-		invSets[1][0][1] = n - 1;
-
-		for (unsigned i = 3; i <= n; ++i)
-		{
-			for (unsigned p = factorial(i - 1); p < factorial(i); ++p)
-			{
-				for (unsigned q = 0; q < i; ++q)
-				{
-					invSets[p][q][0] = n - i;
-					invSets[p][q][1] = n - i + q + 1;
-				}
-			}
-
-			for (unsigned j = 1; j < i; ++j)
-			{
-				for (unsigned k = 0; k < factorial(i - 1); ++k)
-				{
-					unsigned inv = n * (n - 1) / 2;
-
-					for (unsigned r = 0; r < n * (n - 1) / 2; ++r)
-						if (invSets[k][r][0] == invSets[k][r][1])
-						{
-							inv = r;
-							break;
-						}
-
-					for (unsigned l = 0; l < inv; ++l)
-					{
-						invSets[factorial(i - 1) * j + k][j + l][0] = invSets[k][l][0];
-						invSets[factorial(i - 1) * j + k][j + l][1] = invSets[k][l][1];
-					}
-
-					for (unsigned s = j + inv; s < n * (n - 1) / 2; ++s)
-					{
-						invSets[factorial(i - 1) * j + k][s][0] = 0;
-						invSets[factorial(i - 1) * j + k][s][1] = 0;
-					}
-				}
-			}
-		}
-
-		// creating transpositions matrix
-
-		unsigned** trsp = new unsigned* [f];
-		trsp[0] = new unsigned[n * f];
-
-		for (unsigned j = 0; j < n; ++j)
-			trsp[0][j] = j;
-
-		for (unsigned i = 1; i < f; ++i)
-		{
-			trsp[i] = trsp[0] + i * n;
-			for (unsigned j = 0; j < n; ++j)
-				trsp[i][j] = j; // filling everything with "e" transpositions
-		}
-
-		// applying the inversions to transpositions
-
-		for (unsigned i = 0; i < f; ++i)
-			for (unsigned j = 0; j < n * (n - 1) / 2; ++j)
-				swap(trsp[i][invSets[i][j][0]], trsp[i][invSets[i][j][1]]);
-
-		for (unsigned i = 0; i < f; ++i)
-		{
-			for (unsigned j = 0; j < n * (n - 1) / 2; ++j)
-				delete[] invSets[i][j];
-			delete[] invSets[i];
-		}
-		delete[] invSets;
-
-		return trsp;
-	}
-
-	int mat::countNonZero(mat m)
-	{
-		int q = 0;
-		for (unsigned i = 0; i < m.rows; ++i)
-		{
-			bool found = false;
-			for (unsigned j = 0; j < m.cols; ++j)
-				if (!areEqual(m(i, j), 0.0))
-				{
-					found = true;
-					break;
-				}
-			if (!found) return q;
-			++q;
-		}
-		return q;
-	}
-
-
 
 	////////////////////////////////////////////////////
 	/// VECTOR CLASS
 	////////////////////////////////////////////////////
 
-	// constructors & destructor
+	// CONSTRUCTORS & DESTRUCTOR
 
 	vec::vec()
 	{
@@ -658,12 +718,12 @@ namespace vm
 
 	vec::vec(unsigned n)
 	{
-		m.setSize(1, n);
+		m.setSize(n, 1);
 	}
 
 	vec::vec(const vec& o)
 	{
-		m.setSize(1, o.m.cols);
+		m.setSize(o.m.rows, 1);
 		m = o.m;
 	}
 
@@ -671,38 +731,43 @@ namespace vm
 	{
 	}
 
+	// OPERATORS
 
-	// operators
-	
-	double& vec::operator[](const unsigned k)
+	// picking an element
+
+	double& vec::operator[](const unsigned k) const
 	{
-		return m.el[0][k];
+		return m.el[k][0];
 	}
+
+	// arithmetic
 
 	vec vec::operator+(const vec& v) const
 	{
-		vec sum(v.m.cols);
+		vec sum(v.m.rows);
 		sum.m = this->m + v.m;
 		return sum;
 	}
 
 	vec vec::operator-(const vec& v) const
 	{
-		vec dif(v.m.cols);
+		vec dif(v.m.rows);
 		dif.m = this->m - v.m;
 		return dif;
 	}
 
 	vec vec::operator-() const
 	{
-		vec res(m.cols);
+		vec res(m.rows);
 		res = -1 * m;
 		return res;
 	}
 
+	// operations with constants
+
 	vec operator*(const double lambda, const vec& v)
 	{
-		vec res(v.m.cols);
+		vec res(v.m.rows);
 		res.m = lambda * v.m;
 		return res;
 	}
@@ -714,10 +779,12 @@ namespace vm
 
 	vec operator/(const vec& v, const double lambda)
 	{
-		vec res(v.m.cols);
+		vec res(v.m.rows);
 		res.m = v.m / lambda;
 		return res;
 	}
+
+	// equating
 
 	void vec::operator=(const vec& v)
 	{
@@ -726,9 +793,9 @@ namespace vm
 
 	void vec::operator=(const mat& mt)
 	{
-		if (mt.rows == 1)
+		if (mt.cols == 1)
 			m = mt;
-		else if (mt.cols == 1)
+		else if (mt.rows == 1)
 			m = transpose(mt);
 		else
 		{
@@ -757,6 +824,8 @@ namespace vm
 		*this = *this / lambda;
 	}
 
+	// comparison
+
 	bool operator==(const vec& l, const vec& r)
 	{
 		return l.m == r.m;
@@ -767,87 +836,92 @@ namespace vm
 		return l.m != r.m;
 	}
 
+	// ostream
+
 	std::ostream& operator<<(std::ostream& out, const vec& v)
 	{
 		out << "{ ";
 
-		for (unsigned i = 0; i < v.m.cols - 1; ++i)
+		for (unsigned i = 0; i < v.m.rows - 1; ++i)
 			out << v.m.el[0][i] << ", ";
-		out << v.m.el[0][v.m.cols - 1] << " }";
+		out << v.m.el[0][v.m.rows - 1] << " }";
 
 		return out;
 	}
 
-
-	// methods
+	// METHODS
 
 	mat asRow(const vec& v)
-	{
-		return v.m;
-	}
-
-	mat asCol(const vec& v)
 	{
 		return transpose(v.m);
 	}
 
+	mat asCol(const vec& v)
+	{
+		return v.m;
+	}
+
 	void vec::setSize(const unsigned n)
 	{
-		m.setSize(1, n);
+		m.setSize(n, 1);
 	}
 
 	bool areCollinear(const vec& a, const vec& b)
 	{
-		if (a.m.cols != b.m.cols)
+		if (a.m.rows != b.m.rows)
 		{
 			std::cout << "Ñollinearity is not defined for vectors of different dimensions" << std::endl;
 			exit(1);
 		}
 
 		bool nonZeroA = false, nonZeroB = false;
-		for (unsigned i = 0; i < a.m.cols; ++i)
+
+		for (unsigned i = 0; i < a.m.rows; ++i)
 		{
-			if (!areEqual(a.m.el[0][i], 0.0)) nonZeroA = true;
-			if (!areEqual(b.m.el[0][i], 0.0)) nonZeroB = true;
+			if (!areEqual(a.m.el[i][0], 0.0)) nonZeroA = true;
+			if (!areEqual(b.m.el[i][0], 0.0)) nonZeroB = true;
 		}
+
 		if (!nonZeroA || !nonZeroB)
 			return true; // both are null vectors
 
 		double k = 0.0;
-		for (unsigned i = 0; i < a.m.cols; ++i)
+
+		for (unsigned i = 0; i < a.m.rows; ++i)
 		{
-			if (!areEqual(b.m.el[0][i], 0.0))
+			if (!areEqual(b.m.el[i][0], 0.0))
 			{
-				if (areEqual(a.m.el[0][i], 0.0)) return false;
+				if (areEqual(a.m.el[i][0], 0.0)) return false;
 				else
 				{
 					if (!areEqual(k, 0.0))
 					{
-						if (!areEqual(a.m.el[0][i] / b.m.el[0][i], k))
+						if (!areEqual(a.m.el[i][0] / b.m.el[i][0], k))
 							return false;
 					}
 					else
-						k = a.m.el[0][i] / b.m.el[0][i];
+						k = a.m.el[i][0] / b.m.el[i][0];
 				}
 			}
-			else if (!areEqual(a.m.el[0][i], 0.0)) return false;
+			else if (!areEqual(a.m.el[i][0], 0.0)) return false;
 		}
+
 		return true;
 	}
 
 	bool areCoplanar(const vec& a, const vec& b, const vec& c)
 	{
-		if (a.m.cols != b.m.cols || a.m.cols != c.m.cols || a.m.cols != 3)
+		if (a.m.rows != b.m.rows || a.m.rows != c.m.rows || a.m.rows != 3)
 		{
-			std::cout << "Ñoplanarity is only defined for 3 dimensional vectors" << std::endl;
+			std::cout << "bool areCoplanar(...) is only defined for 3 dimensional vectors" << std::endl;
 			exit(1);
 		}
 
 		mat D(3, 3);
 
-		D(0, 0) = a.m.el[0][0]; D(0, 1) = a.m.el[0][1]; D(0, 2) = a.m.el[0][2];
-		D(1, 0) = b.m.el[0][0]; D(1, 1) = b.m.el[0][1]; D(1, 2) = b.m.el[0][2];
-		D(2, 0) = c.m.el[0][0]; D(2, 1) = c.m.el[0][1]; D(2, 2) = c.m.el[0][2];
+		D(0, 0) = a.m.el[0][0]; D(0, 1) = a.m.el[1][0]; D(0, 2) = a.m.el[2][0];
+		D(1, 0) = b.m.el[0][0]; D(1, 1) = b.m.el[1][0]; D(1, 2) = b.m.el[2][0];
+		D(2, 0) = c.m.el[0][0]; D(2, 1) = c.m.el[1][0]; D(2, 2) = c.m.el[2][0];
 
 		return !det(D);
 	}
@@ -855,14 +929,11 @@ namespace vm
 	double length(const vec& v)
 	{
 		double m = 0.0;
-		for (unsigned i = 0; i < v.m.cols; ++i)
-			m += pow(v.m.el[0][i], 2);
-		return pow(m, 0.5);
-	}
 
-	double cosBetween(const vec& a, const vec& b)
-	{
-		return dotProd(a, b) / length(a) / length(b);
+		for (unsigned i = 0; i < v.m.rows; ++i)
+			m += pow(v.m.el[i][0], 2);
+
+		return pow(m, 0.5);
 	}
 
 	double dotProd(const vec& a, const vec& b)
@@ -870,11 +941,16 @@ namespace vm
 		return (a.m * transpose(b.m)).el[0][0];
 	}
 
+	double cosBetween(const vec& a, const vec& b)
+	{
+		return dotProd(a, b) / length(a) / length(b);
+	}
+
 	vec crossProd(const vec& a, const vec& b)
 	{
-		if (a.m.cols != 3)
+		if (a.m.rows != 3)
 		{
-			std::cout << "Cross product can only be calculated for 3 dimensional vectors" << std::endl;
+			std::cout << "Cross product is only defined for 3 dimensional vectors" << std::endl;
 			exit(1);
 		}
 
@@ -882,27 +958,25 @@ namespace vm
 
 		mat x(2, 2), y(2, 2), z(2, 2);
 
-		x(0, 0) = a.m.el[0][1]; x(0, 1) = a.m.el[0][2];
-		x(1, 0) = b.m.el[0][1]; x(1, 1) = b.m.el[0][2];
+		x(0, 0) = a.m.el[1][0]; x(0, 1) = a.m.el[2][0];
+		x(1, 0) = b.m.el[1][0]; x(1, 1) = b.m.el[2][0];
 
-		y(0, 0) = a.m.el[0][2]; y(0, 1) = a.m.el[0][0];
-		y(1, 0) = b.m.el[0][2]; y(1, 1) = b.m.el[0][0];
+		y(0, 0) = a.m.el[2][0]; y(0, 1) = a.m.el[0][0];
+		y(1, 0) = b.m.el[2][0]; y(1, 1) = b.m.el[0][0];
 
-		z(0, 0) = a.m.el[0][0]; z(0, 1) = a.m.el[0][1];
-		z(1, 0) = b.m.el[0][0]; z(1, 1) = b.m.el[0][1];
+		z(0, 0) = a.m.el[0][0]; z(0, 1) = a.m.el[1][0];
+		z(1, 0) = b.m.el[0][0]; z(1, 1) = b.m.el[1][0];
 
 		res[0] = det(x); res[1] = det(y); res[2] = det(z);
 
 		return res;
 	}
 
-
-
 	////////////////////////////////////////////////////
 	/// COMPLEX CLASS
 	////////////////////////////////////////////////////
 
-	// constructors & destructor
+	// CONSTRUCTORS & DESTRUCTOR
 
 	complex::complex()
 	{
@@ -920,7 +994,7 @@ namespace vm
 
 	complex::complex(const complex& o)
 	{
-		m.setSize(o.m.rows, o.m.rows);
+		m.setSize(o.m.rows, o.m.cols);
 		m = o.m;
 	}
 
@@ -928,9 +1002,11 @@ namespace vm
 	{
 	}
 
-	// operators
+	// OPERATORS
 
-	void complex::operator()(const double re, const double im)
+	// arithmetic
+
+	void complex::operator()(const double re, const double im) const
 	{
 		m(0, 0) = re; m(0, 1) = im;
 		m(1, 0) = -im; m(1, 1) = re;
@@ -943,21 +1019,11 @@ namespace vm
 		return sum;
 	}
 
-	complex complex::operator+(const double re) const
-	{
-		return *this + complex(re, 0.0);
-	}
-
 	complex complex::operator-(const complex& c) const
 	{
 		complex dif;
 		dif.m = m - c.m;
 		return dif;
-	}
-
-	complex complex::operator-(const double re) const
-	{
-		return *this - complex(re, 0.0);
 	}
 
 	complex complex::operator*(const complex& c) const
@@ -967,10 +1033,22 @@ namespace vm
 		return prod;
 	}
 
+	complex complex::operator+(const double re) const
+	{
+		return *this + complex(re, 0.0);
+	}
+
+	complex complex::operator-(const double re) const
+	{
+		return *this - complex(re, 0.0);
+	}
+
 	complex complex::operator*(const double re) const
 	{
 		return *this * complex(re, 0.0);
 	}
+
+	// operators with constant
 
 	complex complex::operator^(const int pow) const
 	{
@@ -979,9 +1057,26 @@ namespace vm
 		return res;
 	}
 
+	// equating
+
 	void complex::operator=(const complex& c)
 	{
 		m = c.m;
+	}
+
+	void complex::operator+=(const complex& c)
+	{
+		*this = *this + c;
+	}
+
+	void complex::operator-=(const complex& c)
+	{
+		*this = *this - c;
+	}
+
+	void complex::operator*=(const complex& c)
+	{
+		*this = *this * c;
 	}
 
 	void complex::operator=(const double re)
@@ -990,19 +1085,9 @@ namespace vm
 		m(1, 0) = 0.0; m(1, 1) = re;
 	}
 
-	void complex::operator+=(const complex& c)
-	{
-		*this = *this + c;
-	}
-
 	void complex::operator+=(const double re)
 	{
 		*this = *this + complex(re, 0.0);
-	}
-
-	void complex::operator-=(const complex& c)
-	{
-		*this = *this - c;
 	}
 
 	void complex::operator-=(const double re)
@@ -1010,15 +1095,12 @@ namespace vm
 		*this = *this - complex(re, 0.0);
 	}
 
-	void complex::operator*=(const complex& c)
-	{
-		*this = *this * c;
-	}
-
 	void complex::operator*=(const double re)
 	{
 		*this = *this * complex(re, 0.0);
 	}
+
+	// comparison
 
 	bool operator==(const complex& l, const complex& r)
 	{
@@ -1030,14 +1112,15 @@ namespace vm
 		return l.m != r.m;
 	}
 
+	// ostream
+
 	std::ostream& operator<<(std::ostream& out, const complex& c)
 	{
 		out << c.m.el[0][0] << " + " << c.m.el[0][1] << "i";
 		return out;
 	}
 
-
-	// methods
+	// METHODS
 
 	void complex::setRe(const double re)
 	{
@@ -1100,9 +1183,9 @@ namespace vm
 
 			for (unsigned j = 0; j < roots[i].m.rows; ++j)
 				for (unsigned k = 0; k < roots[i].m.cols; ++k)
-					roundByEps(roots[i].m.el[j][k]);
+					restoreInt(roots[i].m.el[j][k]);
 		}
+
 		return roots;
 	}
-
-} // namespace vm
+}

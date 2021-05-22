@@ -5,32 +5,33 @@
 namespace vm
 {
 	const double PI = 3.141592653589793;
+	const double eps = 1e-15;
 
 	class mat;
 	class vec;
 	class complex;
 
-	// functions
 	bool areEqual(const double, const double);
-	void roundByEps(double&);
-	int sgn(double);
+	void restoreInt(double&);
+	int sgn(const double);
 	unsigned factorial(const unsigned);
-	double getInterpolatedValue(double*, double*, unsigned, double);
+	double interpolate(double*, double*, unsigned, double);
+	void invSets(unsigned***, const unsigned);
+	void trspGroup(unsigned**, const unsigned);
 
 	class mat
 	{
 	public:
 
-		// constructors & destructor
 		mat();
 		mat(const unsigned, const unsigned);
 		mat(const mat&);
 		~mat();
 
 		unsigned rows, cols;
-				
-		// picking the element
-		double& operator()(const unsigned, const unsigned);
+
+		// picking an element
+		double& operator()(const unsigned, const unsigned) const;
 
 		// arithmetic
 		mat operator+(const mat&) const;
@@ -38,7 +39,7 @@ namespace vm
 		mat operator-() const;
 		mat operator*(const mat&) const;
 
-		// with constants
+		// operations with constants
 		friend mat operator*(const double, const mat&);
 		friend mat operator*(const mat&, const double);
 		friend mat operator/(const mat&, const double);
@@ -48,6 +49,7 @@ namespace vm
 		void operator=(const mat&);
 		void operator+=(const mat&);
 		void operator-=(const mat&);
+		void operator*=(const mat&);
 		void operator*=(const double);
 		void operator/=(const double);
 
@@ -57,20 +59,14 @@ namespace vm
 
 		// methods
 		void setSize(const unsigned, const unsigned);
-		void swap(unsigned&, unsigned&);
 		friend mat transpose(const mat&);
-		friend mat steppedView(mat);
+		friend mat steppedView(const mat&);
 		friend mat betterSteppedView(const mat&);
-		friend int rk(mat);
-		friend double det(mat);
+		friend unsigned rk(const mat&);
+		friend double det(const mat&);
 
-		// container
+		// elements
 		double** el;
-
-	private:
-
-		unsigned** transpositions();
-		int countNonZero(mat);
 	};
 
 	class vec
@@ -83,15 +79,15 @@ namespace vm
 		vec(const vec&);
 		~vec();
 
-		// picking the element
-		double& operator[](const unsigned);
+		// picking an element
+		double& operator[](const unsigned) const;
 
 		// arithmetic
 		vec operator+(const vec&) const;
 		vec operator-(const vec&) const;
 		vec operator-() const;
 
-		// with constants
+		// operations with constants
 		friend vec operator*(const double, const vec&);
 		friend vec operator*(const vec&, const double);
 		friend vec operator/(const vec&, const double);
@@ -118,8 +114,8 @@ namespace vm
 		friend bool areCollinear(const vec&, const vec&);
 		friend bool areCoplanar(const vec&, const vec&, const vec&);
 		friend double length(const vec&);
-		friend double cosBetween(const vec&, const vec&);
 		friend double dotProd(const vec&, const vec&);
+		friend double cosBetween(const vec&, const vec&);
 		friend vec crossProd(const vec&, const vec&);
 
 	private:
@@ -138,27 +134,27 @@ namespace vm
 		~complex();
 
 		// setting the number
-		void operator()(const double, const double);
+		void operator()(const double, const double) const;
 
 		// arithmetic
 		complex operator+(const complex&) const;
-		complex operator+(const double) const;
 		complex operator-(const complex&) const;
-		complex operator-(const double) const;
 		complex operator*(const complex&) const;
+		complex operator+(const double) const;
+		complex operator-(const double) const;
 		complex operator*(const double) const;
 
-		// with constant
+		// operators with constant
 		complex operator^(const int) const;
 
 		// equating
 		void operator=(const complex&);
-		void operator=(const double);
 		void operator+=(const complex&);
-		void operator+=(const double);
 		void operator-=(const complex&);
-		void operator-=(const double);
 		void operator*=(const complex&);
+		void operator=(const double);
+		void operator+=(const double);
+		void operator-=(const double);
 		void operator*=(const double);
 
 		// comparison
@@ -182,5 +178,4 @@ namespace vm
 
 		mat m;
 	};
-
-} // namespace vm
+}
