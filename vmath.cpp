@@ -870,7 +870,7 @@ namespace vm
 	{
 		if (a.m.rows != b.m.rows)
 		{
-			std::cout << "Ñollinearity is not defined for vectors of different dimensions" << std::endl;
+			std::cout << "Collinearity is not defined for vectors of different dimensions" << std::endl;
 			exit(1);
 		}
 
